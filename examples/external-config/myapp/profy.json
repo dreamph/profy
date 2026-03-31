@@ -1,0 +1,16 @@
+{
+  "configs": {
+    "dev": {
+      "files": ["base.env", "dev.env", "secret/dev.env"],
+      "required_keys": ["APP_ENV", "APP_PORT", "DB_HOST", "DB_PORT", "DB_NAME", "DB_USER", "DB_PASSWORD"]
+    },
+    "sit": {
+      "files": ["base.env", "sit.env", "secret/sit.env"],
+      "required_keys": ["APP_ENV", "APP_PORT"]
+    },
+    "prod": {
+      "files": ["base.env", "prod.env", "secret/prod.env"],
+      "required_keys": ["APP_ENV", "APP_PORT"]
+    }
+  }
+}
