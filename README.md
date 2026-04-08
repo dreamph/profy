@@ -47,6 +47,12 @@ This tells profy which project config to look for:
 project_id: myapp
 ```
 
+Nested config directories are also supported:
+
+```yaml
+project_id: dir1/myapp
+```
+
 ### Step 2: Set up external config
 
 Create a config directory at `~/.profy/myapp/` with your env files:
@@ -98,6 +104,8 @@ profy dev go run ./examples/app
 ```
 
 That's it. profy reads `.profy.yml` -> finds `myapp` config -> loads env files for `dev` profile -> injects them -> runs your command.
+
+If `project_id` is `dir1/myapp`, profy reads config from `~/.profy/dir1/myapp/`.
 
 ## Usage
 

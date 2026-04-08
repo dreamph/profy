@@ -51,6 +51,29 @@ func TestLoadProjectConfigAndResolveProfile(t *testing.T) {
 	}
 }
 
+func TestLoadProjectConfigSupportsNestedProjectID(t *testing.T) {
+	configHome := t.TempDir()
+	projectID := "dir1/myapp"
+	projectDir := filepath.Join(configHome, "dir1", "myapp")
+	if err := os.MkdirAll(projectDir, 0o755); err != nil {
+		t.Fatalf("mkdir project dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(projectDir, "profy.json"), []byte(`{"configs":{"dev":{"files":["dev.env"]}}}`), 0o600); err != nil {
+		t.Fatalf("write profy.json: %v", err)
+	}
+
+	cfg, err := LoadProjectConfig(projectID, configHome)
+	if err != nil {
+		t.Fatalf("LoadProjectConfig() error = %v", err)
+	}
+	if cfg.ProjectID != projectID {
+		t.Fatalf("ProjectID = %q, want %q", cfg.ProjectID, projectID)
+	}
+	if cfg.ProjectDir != projectDir {
+		t.Fatalf("ProjectDir = %q, want %q", cfg.ProjectDir, projectDir)
+	}
+}
+
 func TestLoadProjectConfigValidation(t *testing.T) {
 	t.Run("empty project id", func(t *testing.T) {
 		_, err := LoadProjectConfig("", t.TempDir())

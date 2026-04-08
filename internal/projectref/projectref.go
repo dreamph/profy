@@ -29,13 +29,22 @@ func ReadProjectID(projectFile string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("parse project config file %q: %w", projectFile, err)
 	}
-	if strings.Contains(projectID, "/") || strings.Contains(projectID, `\`) {
-		return "", fmt.Errorf("invalid project id %q", projectID)
-	}
-	if projectID == "." || projectID == ".." {
+	if !isValidProjectID(projectID) {
 		return "", fmt.Errorf("invalid project id %q", projectID)
 	}
 	return projectID, nil
+}
+
+func isValidProjectID(projectID string) bool {
+	if projectID == "" || filepath.IsAbs(projectID) || strings.Contains(projectID, `\`) {
+		return false
+	}
+	for _, segment := range strings.Split(projectID, "/") {
+		if segment == "" || segment == "." || segment == ".." {
+			return false
+		}
+	}
+	return true
 }
 
 type fileConfig struct {

@@ -40,18 +40,53 @@ func TestReadProjectIDAcceptsNormalID(t *testing.T) {
 	}
 }
 
-func TestReadProjectIDRejectsPathSeparator(t *testing.T) {
+func TestReadProjectIDAcceptsNestedID(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
 	projectFile := filepath.Join(dir, ".profy.yml")
-	if err := os.WriteFile(projectFile, []byte("project_id: a/b\n"), 0o600); err != nil {
+	if err := os.WriteFile(projectFile, []byte("project_id: dir1/myapp\n"), 0o600); err != nil {
 		t.Fatalf("write project file: %v", err)
 	}
 
-	_, err := ReadProjectID(projectFile)
-	if err == nil {
-		t.Fatal("expected an error for invalid project id with path separator")
+	id, err := ReadProjectID(projectFile)
+	if err != nil {
+		t.Fatalf("ReadProjectID() error = %v", err)
+	}
+	if id != "dir1/myapp" {
+		t.Fatalf("ReadProjectID() = %q, want %q", id, "dir1/myapp")
+	}
+}
+
+func TestReadProjectIDRejectsInvalidPathIDs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		id   string
+	}{
+		{name: "traversal segment", id: "dir1/../myapp"},
+		{name: "dot segment", id: "dir1/./myapp"},
+		{name: "empty segment", id: "dir1//myapp"},
+		{name: "absolute path", id: "/dir1/myapp"},
+		{name: "backslash separator", id: `dir1\myapp`},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			dir := t.TempDir()
+			projectFile := filepath.Join(dir, ".profy.yml")
+			if err := os.WriteFile(projectFile, []byte("project_id: "+tc.id+"\n"), 0o600); err != nil {
+				t.Fatalf("write project file: %v", err)
+			}
+
+			_, err := ReadProjectID(projectFile)
+			if err == nil {
+				t.Fatalf("expected an error for invalid project id %q", tc.id)
+			}
+		})
 	}
 }
 
