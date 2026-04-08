@@ -16,8 +16,8 @@ In real projects, you have multiple environments: `dev`, `sit`, `prod` — each 
 **profy** solves this by:
 
 - Keeping all env configs **outside your repository** (e.g. `~/.profy/`) so secrets never get committed
-- Letting you define **profiles** (`dev`, `sit`, `prod`) that each load a specific set of `.env` files
-- **Merging** multiple env files in order — base config first, then profile-specific, then secrets
+- Letting you define **profiles** (`dev`, `sit`, `prod`) that each load a specific set of env config files (`.env`, `.yml`, `.yaml`)
+- **Merging** multiple env config files in order — base config first, then profile-specific, then secrets
 - **Validating** required keys before your app starts — no more runtime crashes from missing config
 - **Watching** env files for changes and auto-restarting your app during development
 
@@ -56,7 +56,7 @@ Create a config directory at `~/.profy/myapp/` with your env files:
 └── myapp/
     ├── profy.json          # profile definitions
     ├── base.env           # shared across all profiles
-    ├── dev.env            # dev-specific values
+    ├── dev.yml            # dev-specific values
     ├── sit.env            # sit-specific values
     ├── prod.env           # prod-specific values
     └── secret/            # sensitive values (credentials, API keys)
@@ -71,7 +71,7 @@ Define your profiles in `profy.json`:
 {
   "configs": {
     "dev": {
-      "files": ["base.env", "dev.env", "secret/dev.env"],
+      "files": ["base.env", "dev.yml", "secret/dev.env"],
       "required_keys": ["APP_ENV", "APP_PORT", "DB_HOST", "DB_USER", "DB_PASSWORD"]
     },
     "sit": {
@@ -147,12 +147,12 @@ your-project/
 └── .profy.yml                 # project_id: myapp
         │
         ▼
-~/.profy/myapp/profy.json       # profile "dev" -> [base.env, dev.env, secret/dev.env]
+~/.profy/myapp/profy.json       # profile "dev" -> [base.env, dev.yml, secret/dev.env]
         │
         ▼
    ┌────────────┬──────────────┬──────────────────┐
-   │  base.env  │   dev.env    │  secret/dev.env   │
-   │  APP_NAME  │  APP_ENV=dev │  DB_PASSWORD=xxx   │
+   │  base.env  │   dev.yml    │  secret/dev.env   │
+   │  APP_NAME  │  APP_ENV:dev │  DB_PASSWORD=xxx   │
    │  LOG_LEVEL │  APP_PORT    │  DB_USER=admin     │
    └────────────┴──────────────┴──────────────────┘
         │              │                │
@@ -172,7 +172,9 @@ your-project/
 
 ## Env file format
 
-Standard `.env` format with extras:
+`profy` supports both `.env`-style files and YAML files.
+
+`.env` format:
 
 ```bash
 # Comments are supported
@@ -191,6 +193,19 @@ export LOG_LEVEL=info
 # Inline comments
 API_TIMEOUT=30s  # request timeout
 ```
+
+YAML format:
+
+```yaml
+APP_NAME: myapp
+APP_ENV: dev
+APP_PORT: 8080
+DB_DSN: postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}
+FEATURE_FLAG: true
+EMPTY_VALUE: null
+```
+
+For YAML files, only top-level scalar values are supported. Nested objects and arrays are rejected.
 
 ## License
 

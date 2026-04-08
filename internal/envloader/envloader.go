@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 func BuildMergedEnv(projectDir string, files []string, override bool) ([]string, error) {
@@ -20,7 +22,7 @@ func BuildMergedEnv(projectDir string, files []string, override bool) ([]string,
 
 	fileMerged := make(map[string]string)
 	for _, rel := range files {
-		parsed, err := parseEnvFile(filepath.Join(projectDir, rel))
+		parsed, err := parseVarsFile(filepath.Join(projectDir, rel))
 		if err != nil {
 			return nil, fmt.Errorf("load env for profile failed: %w", err)
 		}
@@ -65,6 +67,15 @@ func PrintEnv(w io.Writer, env []string) {
 	}
 }
 
+func parseVarsFile(path string) (map[string]string, error) {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".yml", ".yaml":
+		return parseYAMLFile(path)
+	default:
+		return parseEnvFile(path)
+	}
+}
+
 func parseEnvFile(path string) (map[string]string, error) {
 	file, err := os.Open(path)
 	if err != nil {
@@ -106,6 +117,65 @@ func parseEnvFile(path string) (map[string]string, error) {
 		return nil, err
 	}
 	return result, nil
+}
+
+func parseYAMLFile(path string) (map[string]string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("open yaml file: %w", err)
+	}
+
+	var raw map[string]any
+	if err := yaml.Unmarshal(data, &raw); err != nil {
+		return nil, fmt.Errorf("parse yaml file: %w", err)
+	}
+	if len(raw) == 0 {
+		return map[string]string{}, nil
+	}
+
+	result := make(map[string]string, len(raw))
+	for key, value := range raw {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			return nil, fmt.Errorf("empty env key in yaml file")
+		}
+		if !isValidEnvKey(key) {
+			return nil, fmt.Errorf("invalid env key %q in yaml file", key)
+		}
+
+		parsedValue, err := yamlScalarToString(key, value)
+		if err != nil {
+			return nil, err
+		}
+		result[key] = parsedValue
+	}
+	return result, nil
+}
+
+func yamlScalarToString(key string, value any) (string, error) {
+	switch v := value.(type) {
+	case nil:
+		return "", nil
+	case string:
+		return v, nil
+	case bool:
+		if v {
+			return "true", nil
+		}
+		return "false", nil
+	case int:
+		return strconv.Itoa(v), nil
+	case int8, int16, int32, int64:
+		return fmt.Sprintf("%d", v), nil
+	case uint, uint8, uint16, uint32, uint64:
+		return fmt.Sprintf("%d", v), nil
+	case float32:
+		return strconv.FormatFloat(float64(v), 'f', -1, 32), nil
+	case float64:
+		return strconv.FormatFloat(v, 'f', -1, 64), nil
+	default:
+		return "", fmt.Errorf("invalid yaml value for key %q: only scalar values are supported", key)
+	}
 }
 
 func parseEnvValue(v string) (string, error) {

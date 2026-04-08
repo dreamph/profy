@@ -85,6 +85,54 @@ func TestBuildMergedEnvMergeOrderAndOverride(t *testing.T) {
 	}
 }
 
+func TestBuildMergedEnvSupportsYAMLFiles(t *testing.T) {
+	t.Setenv("FROM_OS", "os-value")
+
+	projectDir := t.TempDir()
+	baseEnv := filepath.Join(projectDir, "base.env")
+	devYAML := filepath.Join(projectDir, "dev.yml")
+	if err := os.WriteFile(baseEnv, []byte("APP_NAME=profy\nFROM_OS=from-env\n"), 0o600); err != nil {
+		t.Fatalf("write base env file: %v", err)
+	}
+
+	yamlContent := strings.Join([]string{
+		"APP_ENV: dev",
+		"APP_PORT: 8080",
+		`DSN: "postgres://${APP_NAME}@localhost:${APP_PORT}"`,
+		"FEATURE_FLAG: true",
+		"EMPTY_VALUE: null",
+		"",
+	}, "\n")
+	if err := os.WriteFile(devYAML, []byte(yamlContent), 0o600); err != nil {
+		t.Fatalf("write yaml env file: %v", err)
+	}
+
+	merged, err := BuildMergedEnv(projectDir, []string{"base.env", "dev.yml"}, false)
+	if err != nil {
+		t.Fatalf("BuildMergedEnv() error = %v", err)
+	}
+
+	got := envSliceToMap(merged)
+	if got["APP_ENV"] != "dev" {
+		t.Fatalf("APP_ENV = %q, want %q", got["APP_ENV"], "dev")
+	}
+	if got["APP_PORT"] != "8080" {
+		t.Fatalf("APP_PORT = %q, want %q", got["APP_PORT"], "8080")
+	}
+	if got["DSN"] != "postgres://profy@localhost:8080" {
+		t.Fatalf("DSN = %q, want expanded yaml value", got["DSN"])
+	}
+	if got["FEATURE_FLAG"] != "true" {
+		t.Fatalf("FEATURE_FLAG = %q, want %q", got["FEATURE_FLAG"], "true")
+	}
+	if got["EMPTY_VALUE"] != "" {
+		t.Fatalf("EMPTY_VALUE = %q, want empty string", got["EMPTY_VALUE"])
+	}
+	if got["FROM_OS"] != "os-value" {
+		t.Fatalf("FROM_OS = %q, want %q when override=false", got["FROM_OS"], "os-value")
+	}
+}
+
 func TestParseEnvFileParsesExportCommentsAndQuotes(t *testing.T) {
 	projectDir := t.TempDir()
 	envFile := filepath.Join(projectDir, "dev.env")
@@ -118,6 +166,42 @@ func TestParseEnvFileParsesExportCommentsAndQuotes(t *testing.T) {
 	}
 }
 
+func TestParseYAMLFileParsesScalars(t *testing.T) {
+	projectDir := t.TempDir()
+	envFile := filepath.Join(projectDir, "dev.yaml")
+	content := strings.Join([]string{
+		"APP_ENV: dev",
+		"APP_PORT: 3000",
+		"FEATURE_FLAG: false",
+		"EMPTY_VALUE: null",
+		`GREETING: "hello world"`,
+		"",
+	}, "\n")
+	if err := os.WriteFile(envFile, []byte(content), 0o600); err != nil {
+		t.Fatalf("write yaml file: %v", err)
+	}
+
+	parsed, err := parseYAMLFile(envFile)
+	if err != nil {
+		t.Fatalf("parseYAMLFile() error = %v", err)
+	}
+	if parsed["APP_ENV"] != "dev" {
+		t.Fatalf("APP_ENV = %q, want %q", parsed["APP_ENV"], "dev")
+	}
+	if parsed["APP_PORT"] != "3000" {
+		t.Fatalf("APP_PORT = %q, want %q", parsed["APP_PORT"], "3000")
+	}
+	if parsed["FEATURE_FLAG"] != "false" {
+		t.Fatalf("FEATURE_FLAG = %q, want %q", parsed["FEATURE_FLAG"], "false")
+	}
+	if parsed["EMPTY_VALUE"] != "" {
+		t.Fatalf("EMPTY_VALUE = %q, want empty string", parsed["EMPTY_VALUE"])
+	}
+	if parsed["GREETING"] != "hello world" {
+		t.Fatalf("GREETING = %q, want %q", parsed["GREETING"], "hello world")
+	}
+}
+
 func TestParseEnvFileRejectsInvalidLines(t *testing.T) {
 	projectDir := t.TempDir()
 
@@ -135,6 +219,28 @@ func TestParseEnvFileRejectsInvalidLines(t *testing.T) {
 	}
 	if _, err := parseEnvFile(invalidKey); err == nil {
 		t.Fatal("expected parseEnvFile to fail for invalid env key")
+	}
+}
+
+func TestParseYAMLFileRejectsNestedValues(t *testing.T) {
+	projectDir := t.TempDir()
+	envFile := filepath.Join(projectDir, "invalid.yaml")
+	content := strings.Join([]string{
+		"APP_ENV: dev",
+		"NESTED:",
+		"  ENABLED: true",
+		"",
+	}, "\n")
+	if err := os.WriteFile(envFile, []byte(content), 0o600); err != nil {
+		t.Fatalf("write yaml file: %v", err)
+	}
+
+	_, err := parseYAMLFile(envFile)
+	if err == nil {
+		t.Fatal("expected parseYAMLFile to fail for nested yaml values")
+	}
+	if !strings.Contains(err.Error(), "only scalar values are supported") {
+		t.Fatalf("error = %q, want scalar values error", err.Error())
 	}
 }
 
